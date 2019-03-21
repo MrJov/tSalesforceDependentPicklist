@@ -13,8 +13,8 @@
         java.io.File
         java.io.FileReader
         java.util.LinkedHashMap
-        java.util.LinkedList
-        java.util.List
+        java.util.HashSet
+        java.util.Set
         java.util.Map
         java.util.Map.Entry
         javax.xml.parsers.DocumentBuilder
@@ -84,7 +84,7 @@
                     }
                     String line = "";
                     java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(<%=csvFilePath %>+<%=picklistFileName %>));
-                    java.util.Map<String, java.util.List<String>> map = new java.util.LinkedHashMap<String, java.util.List<String>>();
+                    java.util.Map<String, java.util.Set<String>> map = new java.util.LinkedHashMap<String, java.util.Set<String>>();
                     Boolean skipLine = <%=hasHeader %>;
                     while ((line = br.readLine()) != null) {
                         if(!skipLine) {
@@ -92,7 +92,7 @@
                             String value = valueTokens[<%=valuePosition %>];
                             String ctrlValue = valueTokens[<%=ctrlValuePosition %>];
                             if(!map.containsKey(value)) {
-                                map.put(value, new java.util.LinkedList<String>());
+                                map.put(value, new java.util.HashSet<String>());
                             }
                             map.get(value).add(ctrlValue);
                         } else {
@@ -100,7 +100,7 @@
                         }
                     }
                     br.close();
-                    for (java.util.Map.Entry<String, java.util.List<String>> entry : map.entrySet()){
+                    for (java.util.Map.Entry<String, java.util.Set<String>> entry : map.entrySet()){
                         org.w3c.dom.Element valueSettings = doc.createElement(<%=VALUESETTINGS_TAG %>);
                         valueSetElement.appendChild(valueSettings);
                         org.w3c.dom.Element valueName = doc.createElement(<%=VALUENAME_TAG %>);
