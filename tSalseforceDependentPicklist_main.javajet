@@ -1,0 +1,133 @@
+<%@ jet
+    imports="
+        org.talend.core.model.process.INode
+        org.talend.core.model.process.ElementParameterParser
+        org.talend.core.model.metadata.IMetadataTable
+        org.talend.core.model.metadata.IMetadataColumn
+        org.talend.core.model.process.IConnection
+        org.talend.core.model.process.IConnectionCategory
+        org.talend.designer.codegen.config.CodeGeneratorArgument
+        org.talend.core.model.metadata.types.JavaTypesManager
+        org.talend.core.model.metadata.types.JavaType
+        java.io.BufferedReader
+        java.io.File
+        java.io.FileReader
+        java.util.LinkedHashMap
+        java.util.LinkedList
+        java.util.List
+        java.util.Map
+        java.util.Map.Entry
+        javax.xml.parsers.DocumentBuilder
+        javax.xml.parsers.DocumentBuilderFactory
+        javax.xml.transform.OutputKeys
+        javax.xml.transform.Transformer
+        javax.xml.transform.TransformerFactory
+        javax.xml.transform.dom.DOMSource
+        javax.xml.transform.stream.StreamResult
+        javax.xml.transform.stream.StreamSource
+        org.w3c.dom.Document
+        org.w3c.dom.Element
+        org.w3c.dom.Node
+        org.w3c.dom.NodeList 
+    "
+%>
+<%
+    CodeGeneratorArgument codeGenArgument = (CodeGeneratorArgument) argument;
+    INode node = (INode)codeGenArgument.getArgument();
+    String cid = node.getUniqueName(); 
+    String csvFilePath = (String) ElementParameterParser.getObjectValue(node, "__CSVFOLDER__");
+    Integer valuePosition = Integer.valueOf((String)ElementParameterParser.getObjectValue(node, "__VALUEPOSITION__"));
+    Integer ctrlValuePosition = Integer.valueOf((String)ElementParameterParser.getObjectValue(node, "__CTRLVALUEPOSITION__"));
+    String metadataFilePath = (String) ElementParameterParser.getObjectValue(node, "__METADATAFOLDER__");
+    String configFilePath = (String) ElementParameterParser.getObjectValue(node, "__CONFIGURATIONFOLDER__");
+    String fileName = (String) ElementParameterParser.getObjectValue(node, "__FILENAME__");
+    String fieldName = (String) ElementParameterParser.getObjectValue(node, "__FIELDNAME__");
+    String globalValueSetName = (String) ElementParameterParser.getObjectValue(node, "__GLOBALVALUESET__");
+    String picklistFileName = (String) ElementParameterParser.getObjectValue(node, "__PICKLISTFILENAME__");
+    Boolean hasHeader = (Boolean) ElementParameterParser.getObjectValue(node, "__HASHEADER__");
+
+    String FIELD_TAG = (String) ElementParameterParser.getObjectValue(node, "__FIELD_TAG__");
+    String FULLNAME_TAG = (String) ElementParameterParser.getObjectValue(node, "__FULLNAME_TAG__");
+    String VALUESET_TAG = (String) ElementParameterParser.getObjectValue(node, "__VALUESET_TAG__");
+    String VALUESETNAME_TAG = (String) ElementParameterParser.getObjectValue(node, "__VALUESETNAME_TAG__");
+    String VALUESETTINGS_TAG = (String) ElementParameterParser.getObjectValue(node, "__VALUESETTINGS_TAG__");
+    String CONTROLLINGFIELDVALUE_TAG = (String) ElementParameterParser.getObjectValue(node, "__CONTROLLINGFIELDVALUE_TAG__");
+    String VALUENAME_TAG = (String) ElementParameterParser.getObjectValue(node, "__VALUENAME_TAG__");
+    String CSV_DELIMITER = (String) ElementParameterParser.getObjectValue(node, "__CSV_DELIMITER__");
+%>
+    try {
+        java.io.File inputFile = new java.io.File(<%=metadataFilePath %>+<%=fileName %>);
+        
+        javax.xml.parsers.DocumentBuilderFactory dbFactory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+        javax.xml.parsers.DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        org.w3c.dom.Document doc = dBuilder.parse(inputFile);
+            
+        doc.getDocumentElement().normalize();
+        
+        org.w3c.dom.NodeList fieldsNodes = doc.getElementsByTagName(<%=FIELD_TAG %>);
+            
+        Boolean found = false;
+        Integer fieldIndex = 0;
+        while(!found) {
+            org.w3c.dom.Node fieldsNode = fieldsNodes.item(fieldIndex);
+            if (fieldsNode.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) {
+                org.w3c.dom.Element fieldsElement = (org.w3c.dom.Element) fieldsNode;
+                String fullName = fieldsElement.getElementsByTagName(<%=FULLNAME_TAG %>).item(0).getTextContent();
+                if(fullName.equalsIgnoreCase(<%=fieldName %>)) {        			
+                    found = true;
+                    org.w3c.dom.Element valueSetElement = (org.w3c.dom.Element) fieldsElement.getElementsByTagName(<%=VALUESET_TAG %>).item(0);
+                    org.w3c.dom.Element valueSetName = (org.w3c.dom.Element) valueSetElement.getElementsByTagName(<%=VALUESETNAME_TAG %>).item(0);
+                    valueSetName.setTextContent(<%=globalValueSetName %>);
+                    org.w3c.dom.NodeList valueSettingsNodes = valueSetElement.getElementsByTagName(<%=VALUESETTINGS_TAG %>);
+                    while (valueSettingsNodes.getLength() > 0) {
+                        valueSetElement.removeChild(valueSettingsNodes.item(0));
+                    }
+                    String line = "";
+                    java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(<%=csvFilePath %>+<%=picklistFileName %>));
+                    java.util.Map<String, java.util.List<String>> map = new java.util.LinkedHashMap<String, java.util.List<String>>();
+                    Boolean skipLine = <%=hasHeader %>;
+                    while ((line = br.readLine()) != null) {
+                        if(!skipLine) {
+                            String[] valueTokens = line.split(<%=CSV_DELIMITER %>);
+                            String value = valueTokens[<%=valuePosition %>];
+                            String ctrlValue = valueTokens[<%=ctrlValuePosition %>];
+                            if(!map.containsKey(value)) {
+                                map.put(value, new java.util.LinkedList<String>());
+                            }
+                            map.get(value).add(ctrlValue);
+                        } else {
+                            skipLine = false;
+                        }
+                    }
+                    br.close();
+                    for (java.util.Map.Entry<String, java.util.List<String>> entry : map.entrySet()){
+                        org.w3c.dom.Element valueSettings = doc.createElement(<%=VALUESETTINGS_TAG %>);
+                        valueSetElement.appendChild(valueSettings);
+                        org.w3c.dom.Element valueName = doc.createElement(<%=VALUENAME_TAG %>);
+                        valueName.setTextContent(entry.getKey().replaceAll("\"", ""));
+                        valueSettings.appendChild(valueName);
+                        for(String ctrlValue : entry.getValue()) {
+                            org.w3c.dom.Element ctrlFieldValue = doc.createElement(<%=CONTROLLINGFIELDVALUE_TAG %>);
+                            ctrlFieldValue.setTextContent(ctrlValue.replaceAll("\"", ""));
+                            valueSettings.appendChild(ctrlFieldValue);
+                        }
+                        
+                    }
+
+                    //transform the DOM Object to an XML java.io.File
+                    javax.xml.transform.Transformer transformer = javax.xml.transform.TransformerFactory.newInstance().newTransformer(new javax.xml.transform.stream.StreamSource(<%=configFilePath %>+"strip-space.xsl"));
+                    transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, "yes");
+                    transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+                    javax.xml.transform.dom.DOMSource domSource = new javax.xml.transform.dom.DOMSource(doc);
+                    javax.xml.transform.stream.StreamResult streamResult = new javax.xml.transform.stream.StreamResult(new java.io.File(<%=metadataFilePath %>+<%=fileName %>));
+                    
+                    transformer.transform(domSource, streamResult);
+                }
+            }
+            fieldIndex++;
+        }
+    } catch (Exception e) {
+        System.out.println("Error message" + e.getMessage());
+        System.out.println("Error message" + e.getCause());
+        e.printStackTrace();
+    }
